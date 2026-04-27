@@ -1,14 +1,5 @@
 version: 0.2
 
-env:
-  variables:
-    DBT_PROFILES_DIR: /root/.dbt
-    DBT_DATABASE: awsdatacatalog
-    DBT_SCHEMA: landing
-    DBT_REGION: us-east-1
-    DBT_S3_STAGING_DIR: s3://proj-clima-dbt-hp/dbt/metadados/
-    DBT_S3_DATA_DIR: s3://proj-clima-dbt-hp/dbt/table/
-
 phases:
   install:
     commands:
@@ -37,8 +28,8 @@ phases:
       - dbt run
       - dbt test
       - dbt docs generate
-      - BUILD_DATE=$(TZ=America/Sao_Paulo date +"%d/%m/%Y às %H:%M")
-      - sed -i "/<\/body>/i <p style='text-align:center;font-size:11px;color:#666;margin-top:40px;'> Última atualização: ${BUILD_DATE}</p>" target/index.html
+      - BUILD_DATE=$(date +%d/%m/%Y_%H:%M)
+      - sed -i "s|</body>|<p style=\"text-align:center;font-size:11px;color:#666;margin-top:40px;\">Updated: $BUILD_DATE</p></body>|" target/index.html
 
   post_build:
     commands:
