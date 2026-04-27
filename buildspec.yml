@@ -9,17 +9,24 @@ phases:
   pre_build:
     commands:
       - mkdir -p ~/.dbt
-      - echo "climabr:" > ~/.dbt/profiles.yml
-      - echo "  target: prod" >> ~/.dbt/profiles.yml
-      - echo "  outputs:" >> ~/.dbt/profiles.yml
-      - echo "    prod:" >> ~/.dbt/profiles.yml
-      - echo "      type: athena" >> ~/.dbt/profiles.yml
-      - echo "      database: awsdatacatalog" >> ~/.dbt/profiles.yml
-      - echo "      region_name: us-east-1" >> ~/.dbt/profiles.yml
-      - echo "      schema: landing" >> ~/.dbt/profiles.yml
-      - echo "      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/" >> ~/.dbt/profiles.yml
-      - echo "      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/" >> ~/.dbt/profiles.yml
-      - echo "      threads: 4" >> ~/.dbt/profiles.yml
+      - python -c "import os; os.makedirs(os.path.expanduser('~/.dbt'), exist_ok=True)"
+      - python << PYEOF
+import os
+profile_content = """climabr:
+  target: prod
+  outputs:
+    prod:
+      type: athena
+      database: awsdatacatalog
+      region_name: us-east-1
+      schema: landing
+      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
+      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
+      threads: 4
+"""
+with open(os.path.expanduser('~/.dbt/profiles.yml'), 'w') as f:
+    f.write(profile_content)
+PYEOF
       - dbt debug
 
   build:
@@ -28,8 +35,6 @@ phases:
       - dbt run
       - dbt test
       - dbt docs generate
-      - BUILD_DATE=$(date +%d/%m/%Y_%H:%M)
-      - sed -i "s|</body>|<p style=\"text-align:center;font-size:11px;color:#666;margin-top:40px;\">Updated: $BUILD_DATE</p></body>|" target/index.html
 
   post_build:
     commands:
