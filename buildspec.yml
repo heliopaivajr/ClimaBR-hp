@@ -1,7 +1,18 @@
 version: 0.2
 
+env:
+  variables:
+    DBT_DATABASE: awsdatacatalog
+    DBT_SCHEMA: landing
+    S3_STAGING_DIR: s3://proj-clima-dbt-hp/dbt/metadados/
+    S3_DATA_DIR: s3://proj-clima-dbt-hp/dbt/table/
+    S3_DOCS_DIR: s3://proj-clima-dbt-hp/docs/
+    AWS_REGION: us-east-1
+
 phases:
   install:
+    runtime-versions:
+      python: 3.13
     commands:
       - pip install --upgrade pip
       - pip install dbt-athena-community
@@ -9,36 +20,19 @@ phases:
   pre_build:
     commands:
       - mkdir -p ~/.dbt
-      - python -c "import os; os.makedirs(os.path.expanduser('~/.dbt'), exist_ok=True)"
-      - python << PYEOF
-import os
-profile_content = """climabr:
-  target: prod
-  outputs:
-    prod:
-      type: athena
-      database: awsdatacatalog
-      region_name: us-east-1
-      schema: landing
-      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
-      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
-      threads: 4
-"""
-with open(os.path.expanduser('~/.dbt/profiles.yml'), 'w') as f:
-    f.write(profile_content)
-PYEOF
-      - dbt debug
+      - python create_profiles.py
 
   build:
     commands:
       - dbt deps
+      - dbt debug
       - dbt run
       - dbt test
       - dbt docs generate
 
   post_build:
     commands:
-      - aws s3 sync target/ s3://www.cimabrhp.com --delete --region us-east-1
+      - aws s3 sync target/ s3://proj-clima-dbt-hp/docs/ --delete
 
 artifacts:
   files:
