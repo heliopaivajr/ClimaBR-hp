@@ -1,0 +1,43 @@
+# Nomeie seu projeto! Nomes de projeto devem conter apenas caracteres minúsculos
+# e underscores. Um bom nome de pacote deve refletir o nome da sua organização
+# ou o uso pretendido destes modelos.
+name: 'climabr'
+version: '1.0.0'
+
+# Esta configuração define qual "profile" o dbt usa para este projeto.
+profile: 'climabr'
+
+# Essas configurações especificam onde o dbt deve procurar por diferentes tipos de arquivos.
+# A configuração `model-paths`, por exemplo, indica que os modelos deste projeto podem ser
+# encontrados no diretório "models/". Você provavelmente não precisará alterar isto!
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+docs-paths: ["docs"]
+
+clean-targets:         # diretórios a serem removidos por `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+
+# Configurando modelos
+# Documentação completa: https://docs.getdbt.com/docs/configuring-models
+
+# Nesta configuração de exemplo, dizemos ao dbt para construir todos os modelos
+# no diretório example/ como views. Essas configurações podem ser substituídas
+# nos arquivos de modelo individuais usando a macro `{{ config(...) }}`.
+models:
+  climabr:
+    # Configuração indicada por + e aplica-se a todos os arquivos sob models
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
