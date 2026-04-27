@@ -11,7 +11,7 @@
 
 **Um pipeline de dados moderno para análise de dados meteorológicos brasileiros utilizando AWS, DBT e práticas de engenharia de dados**
 
-[GitHub](https://github.com/HELIOJR/ClimaBR-hp) • [Portfólio](https://heliopaiva.dev) • [LinkedIn](https://linkedin.com/in/helio-paiva)
+[GitHub](https://github.com/HELIOJR/ClimaBR-hp) • [📚 Documentação ao Vivo](https://s3.us-east-1.amazonaws.com/www.cimabrhp.com/docs/index.html) • [Portfólio](https://heliopaiva.dev) • [LinkedIn](https://linkedin.com/in/helio-paiva)
 
 </div>
 
@@ -119,6 +119,30 @@ Este projeto foi desenvolvido como parte do **Programa de Pós-Graduação em En
 - **Endpoint:** www.cimabrhp.com
 
 ---
+
+---
+
+## ⚙️ Arquivos de Configuração Importantes
+
+### **buildspec.yml** 🔑
+Arquivo que controla o pipeline CI/CD no CodeBuild.
+
+**Valores que DEVEM ser preenchidos com seus dados reais:**
+```yaml
+DBT_SCHEMA: landing              # → Seu database Glue
+S3_STAGING_DIR: s3://seu-bucket/ # → Seu bucket
+S3_DATA_DIR: s3://seu-bucket/    # → Seu bucket
+S3_DOCS_DIR: s3://seu-bucket/    # → Seu bucket
+AWS_REGION: us-east-1            # → Sua região
+```
+
+### **create_profiles.py** 🔐
+Script Python que gera `~/.dbt/profiles.yml` automaticamente.
+- Não requer credenciais explícitas (usa IAM role)
+- Executa automaticamente na fase `pre_build` do CodeBuild
+
+### **dbt_project.yml**
+Configuração geral do projeto dbt
 
 ---
 
@@ -239,26 +263,129 @@ git push origin main
 
 ### Configurando CodeBuild (Primeira vez)
 
-1. **Crie um projeto CodeBuild:**
-   - AWS Console → CodeBuild → Create Project
-   - Source: GitHub (conecte seu repositório)
-   - Environment: Managed image, Ubuntu, Python 3.13
-   - Buildspec: Use arquivo `buildspec.yml` deste repo
+#### 1️⃣ Crie um Projeto CodeBuild
 
-2. **Configure variáveis de ambiente:**
-   ```
-   DBT_DATABASE: awsdatacatalog
-   DBT_SCHEMA: seu_database_glue
-   S3_STAGING_DIR: s3://seu-bucket/dbt/metadados/
-   S3_DATA_DIR: s3://seu-bucket/dbt/table/
-   S3_DOCS_DIR: seu-dominio-s3
-   AWS_REGION: us-east-1
-   ```
+1. Vá para **AWS Console** → **CodeBuild** → **Create project**
+2. **Project name:** `ClimaBR-hp` (ou similar)
+3. **Source:** GitHub
+   - Connect your GitHub account
+   - Repository: `ClimaBR-hp`
+4. **Environment:**
+   - Managed image: Ubuntu
+   - Runtime: Standard
+   - Image: `aws/codebuild/standard:7.0`
+   - Runtime versions: Python 3.13
+5. **Buildspec:** Use arquivo `buildspec.yml` deste repo
+6. **Create**
 
-3. **⚠️ IAM Role com permissões (IMPORTANTE!):**
-   - A role precisa de: `athena:*`, `glue:*`, `s3:*`, `logs:*`
-   - Veja: [FIX_CODEBUILD_ERROR.md](FIX_CODEBUILD_ERROR.md) para passo a passo rápido
-   - Veja: [AWS_CODEBUILD_SETUP.md](AWS_CODEBUILD_SETUP.md) para guia completo
+#### 2️⃣ Configure Permissões IAM (CRÍTICO!)
+
+A role do CodeBuild precisa de permissões para Athena, Glue e S3.
+
+**Passos:**
+1. AWS Console → **IAM** → **Roles**
+2. Procure: `codebuild-ClimaBR-hp-service-role`
+3. Clique em **"Add permissions"** → **"Create inline policy"**
+4. **JSON Tab** - Cole isto:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AthenaAccess",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:GetWorkGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "GlueAccess",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:GetPartitions",
+        "glue:CreateTable",
+        "glue:UpdateTable"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3Access",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::proj-clima-dbt-hp",
+        "arn:aws:s3:::proj-clima-dbt-hp/*"
+      ]
+    }
+  ]
+}
+```
+
+5. **Review policy** → Nome: `codebuild-dbt-athena-glue-s3`
+6. **Create policy**
+
+#### 3️⃣ Configure buildspec.yml
+
+**Edite o arquivo `buildspec.yml` com seus valores reais:**
+
+```yaml
+env:
+  variables:
+    DBT_DATABASE: awsdatacatalog
+    DBT_SCHEMA: seu_database_glue  # ← Seu database
+    S3_STAGING_DIR: s3://seu-bucket/dbt/metadados/  # ← Seu bucket
+    S3_DATA_DIR: s3://seu-bucket/dbt/table/  # ← Seu bucket
+    S3_DOCS_DIR: s3://seu-bucket/docs/  # ← Seu bucket
+    AWS_REGION: us-east-1  # ← Sua região
+```
+
+**Arquivo `create_profiles.py` é usado para gerar as credenciais de forma segura.**
+
+#### 4️⃣ Conecte ao GitHub
+
+1. No CodeBuild Project → **Source** → **Connect GitHub**
+2. Autorize o acesso
+3. Selecione o repositório `ClimaBR-hp`
+4. **Webhook:** Enable (auto-dispara build no push)
+
+#### 5️⃣ Teste o Build
+
+```bash
+git add .
+git commit -m "Configure CodeBuild"
+git push origin main
+```
+
+CodeBuild dispara automaticamente → Veja logs em **Build history**
+
+---
+
+## 📚 Documentação ao Vivo
+
+A documentação dbt é **publicada automaticamente** a cada push para o GitHub:
+
+🔗 **[Acesse a documentação completa aqui](https://s3.us-east-1.amazonaws.com/www.cimabrhp.com/docs/index.html)**
+
+Nela você encontra:
+- 🔄 **Data Lineage** - Visualização do fluxo completo de dados
+- 📊 **Modelos** - Descrição detalhada de todos os modelos dbt
+- 🧪 **Testes** - Resultado de 13 testes de qualidade
+- 📈 **Colunas** - Documentação de cada coluna das tabelas
+- 🎯 **Macros** - Funções reutilizáveis do projeto
 
 ---
 
@@ -515,9 +642,10 @@ A documentação dbt é publicada automaticamente em:
 You are not authorized to perform: athena:StartQueryExecution on the resource
 ```
 
-**Solução:** Veja [FIX_CODEBUILD_ERROR.md](FIX_CODEBUILD_ERROR.md)
-
-**Resumo:** A IAM Role do CodeBuild precisa de permissões Athena, Glue e S3.
+**Solução:** Adicione permissões IAM (veja "Configurando CodeBuild" acima)
+- Athena: `athena:*`
+- Glue: `glue:*`
+- S3: `s3:*` (nos seus buckets)
 
 ---
 
@@ -526,64 +654,44 @@ You are not authorized to perform: athena:StartQueryExecution on the resource
 **Causa:** Database não existe no Glue Catalog
 
 **Solução:**
-```bash
-# AWS Console → Glue → Databases → Create database
-# Nome: landing
+```
+AWS Console → Glue → Databases → Create database
+Nome: landing (ou seu database configurado em buildspec.yml)
 ```
 
 ---
 
-### ❌ "Profile not found" ao rodar dbt localmente
+### ❌ Build falha na fase pré_build
 
-**Erro:**
-```
-dbt could not find a profile named 'climabr'
-```
+**Causa:** `create_profiles.py` não encontrado
 
 **Solução:**
 ```bash
-# Verifique se profiles.yml existe
-cat ~/.dbt/profiles.yml
+# Certifique-se que create_profiles.py existe no repositório
+ls -la create_profiles.py
 
-# Ou recrie:
-mkdir -p ~/.dbt
-# E adicione a configuração do Athena
+# Se não existir, copie do repo ClimaBR-hp
 ```
 
 ---
 
-### ❌ Build passa mas docs não vão para S3
+### ❌ dbt debug falha com timeout
 
-**Causa:** Caminho S3 incorreto ou permissões insuficientes
+**Causa:** Athena está lento ou credenciais incorretas
 
 **Solução:**
-```bash
-# Teste localmente
-aws s3 ls s3://www.cimabrhp.com/
-
-# Se falhar, confirme permissões S3 na role IAM
-```
+1. Teste localmente: `dbt debug`
+2. Verifique AWS credentials: `aws sts get-caller-identity`
+3. Aumente timeout em `create_profiles.py`
 
 ---
 
-### ❌ "dbt debug" falha com timeout
+### 📚 Referências
 
-**Causa:** Athena está lento ou conexão instável
-
-**Solução:**
-```bash
-# Aumente o timeout no profiles.yml
-timeout_seconds: 600  # Aumentar de 300 para 600
-```
-
----
-
-### 📚 Documentação Completa
-
-- **Rápido (3 passos):** [FIX_CODEBUILD_ERROR.md](FIX_CODEBUILD_ERROR.md)
-- **Completo (toda config):** [AWS_CODEBUILD_SETUP.md](AWS_CODEBUILD_SETUP.md)
 - **dbt docs:** [docs.getdbt.com](https://docs.getdbt.com)
 - **AWS Athena:** [docs.aws.amazon.com/athena](https://docs.aws.amazon.com/athena)
+- **AWS Glue:** [docs.aws.amazon.com/glue](https://docs.aws.amazon.com/glue)
+- **CodeBuild:** [docs.aws.amazon.com/codebuild](https://docs.aws.amazon.com/codebuild)
 
 ---
 
