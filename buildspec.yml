@@ -6,7 +6,7 @@ env:
     DBT_SCHEMA: landing
     S3_STAGING_DIR: s3://proj-clima-dbt-hp/dbt/metadados/
     S3_DATA_DIR: s3://proj-clima-dbt-hp/dbt/table/
-    S3_DOCS_DIR: s3://proj-clima-dbt-hp/docs/
+    S3_DOCS_DIR: s3://www.cimabrhp.com
     AWS_REGION: us-east-1
 
 phases:
@@ -32,7 +32,7 @@ phases:
 
   post_build:
     commands:
-      - aws s3 sync target/ s3://proj-clima-dbt-hp/docs/ --delete
+      - aws s3 sync target/ s3://www.cimabrhp.com --delete
 
 artifacts:
   files:
