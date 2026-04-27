@@ -2,67 +2,48 @@ version: 0.2
 
 env:
   variables:
+    DBT_PROFILES_DIR: /root/.dbt
     DBT_DATABASE: awsdatacatalog
     DBT_SCHEMA: landing
-    S3_STAGING_DIR: s3://proj-clima-dbt-hp/dbt/metadados/
-    S3_DATA_DIR: s3://proj-clima-dbt-hp/dbt/table/
-    S3_DOCS_DIR: s3://www.cimabrhp.com
-    AWS_REGION: us-east-1
+    DBT_REGION: us-east-1
+    DBT_S3_STAGING_DIR: s3://proj-clima-dbt-hp/dbt/metadados/
+    DBT_S3_DATA_DIR: s3://proj-clima-dbt-hp/dbt/table/
 
 phases:
   install:
     commands:
-      - echo "Installing Python dependencies..."
-      - pip install --upgrade pip setuptools wheel
+      - pip install --upgrade pip
       - pip install dbt-athena-community
 
   pre_build:
     commands:
-      - echo "Validating environment variables..."
-      - echo "Database: $DBT_DATABASE"
-      - echo "Schema: $DBT_SCHEMA"
-      - echo "Region: $AWS_REGION"
       - mkdir -p ~/.dbt
-      - echo "Generating profiles.yml for production..."
-      - |
-        cat > ~/.dbt/profiles.yml <<PROFILES
-        climabr:
-          target: prod
-          outputs:
-            prod:
-              type: athena
-              database: awsdatacatalog
-              region_name: us-east-1
-              schema: landing
-              s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
-              s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
-              threads: 4
-              timeout_seconds: 300
-        PROFILES
-      - echo "Validating Athena credentials..."
+      - echo "climabr:" > ~/.dbt/profiles.yml
+      - echo "  target: prod" >> ~/.dbt/profiles.yml
+      - echo "  outputs:" >> ~/.dbt/profiles.yml
+      - echo "    prod:" >> ~/.dbt/profiles.yml
+      - echo "      type: athena" >> ~/.dbt/profiles.yml
+      - echo "      database: awsdatacatalog" >> ~/.dbt/profiles.yml
+      - echo "      region_name: us-east-1" >> ~/.dbt/profiles.yml
+      - echo "      schema: landing" >> ~/.dbt/profiles.yml
+      - echo "      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/" >> ~/.dbt/profiles.yml
+      - echo "      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/" >> ~/.dbt/profiles.yml
+      - echo "      threads: 4" >> ~/.dbt/profiles.yml
       - dbt debug
 
   build:
     commands:
-      - echo "Installing dbt packages..."
       - dbt deps
-      - echo "Running dbt transformations..."
       - dbt run
-      - echo "Running data quality tests..."
       - dbt test
-      - echo "Generating documentation..."
       - dbt docs generate
-      - echo "Adding timestamp to documentation..."
       - BUILD_DATE=$(TZ=America/Sao_Paulo date +"%d/%m/%Y às %H:%M")
-      - sed -i "/<\/body>/i <p style='text-align:center;font-size:11px;color:#666;margin-top:40px;'> Última atualização: ${BUILD_DATE} (UTC-3)</p>" target/index.html
+      - sed -i "/<\/body>/i <p style='text-align:center;font-size:11px;color:#666;margin-top:40px;'> Última atualização: ${BUILD_DATE}</p>" target/index.html
 
   post_build:
     commands:
-      - echo "Publishing documentation to S3..."
       - aws s3 sync target/ s3://www.cimabrhp.com --delete --region us-east-1
-      - echo "Build completed successfully!"
 
 artifacts:
   files:
     - target/**/*
-  name: dbt-docs-artifact
