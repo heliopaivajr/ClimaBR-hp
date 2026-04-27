@@ -10,122 +10,56 @@ env:
     AWS_REGION: us-east-1
 
 phases:
+  install:
+    commands:
+      - echo "Installing Python dependencies..."
+      - pip install --upgrade pip setuptools wheel
+      - pip install dbt-athena-community
+
   pre_build:
     commands:
-      - echo "=========================================="
-      - echo "🔍 Validando configurações do CodeBuild..."
-      - echo "=========================================="
+      - echo "Validating environment variables..."
       - echo "Database: $DBT_DATABASE"
       - echo "Schema: $DBT_SCHEMA"
       - echo "Region: $AWS_REGION"
-      - echo "S3 Staging: $S3_STAGING_DIR"
-      - echo "S3 Data: $S3_DATA_DIR"
-      - echo "S3 Docs: $S3_DOCS_DIR"
-      - |
-        if [ -z "$DBT_SCHEMA" ] || [ -z "$S3_STAGING_DIR" ]; then
-          echo "❌ ERRO: Variáveis de ambiente não configuradas!"
-          echo "Configure as variáveis no CodeBuild → Environment variables"
-          exit 1
-        fi
-      - echo ""
-      - echo "=========================================="
-      - echo "📦 Instalando dependências..."
-      - echo "=========================================="
-      - python --version
-      - pip install --upgrade pip setuptools wheel
-      - pip install dbt-athena-community dbt-core dbt-extractor
-      - dbt --version
-      - echo ""
-      - echo "=========================================="
-      - echo "🔐 Gerando profiles.yml para produção..."
-      - echo "=========================================="
       - mkdir -p ~/.dbt
-      - |
-        cat > ~/.dbt/profiles.yml <<'EOF'
-        climabr:
-          target: prod
-          outputs:
-            prod:
-              type: athena
-              database: awsdatacatalog
-              region_name: us-east-1
-              schema: landing
-              s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
-              s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
-              threads: 4
-              timeout_seconds: 300
-        EOF
-      - cat ~/.dbt/profiles.yml
-      - echo ""
-      - echo "=========================================="
-      - echo "✅ Validando credenciais Athena..."
-      - echo "=========================================="
+      - echo "Generating profiles.yml for production..."
+      - cat > ~/.dbt/profiles.yml << EOF
+climabr:
+  target: prod
+  outputs:
+    prod:
+      type: athena
+      database: awsdatacatalog
+      region_name: us-east-1
+      schema: landing
+      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
+      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
+      threads: 4
+      timeout_seconds: 300
+EOF
+      - echo "Validating Athena credentials..."
       - dbt debug
 
   build:
     commands:
-      - echo ""
-      - echo "=========================================="
-      - echo "📥 Instalando pacotes dbt..."
-      - echo "=========================================="
+      - echo "Installing dbt packages..."
       - dbt deps
-      - echo ""
-      - echo "=========================================="
-      - echo "🔄 Executando transformações dbt..."
-      - echo "=========================================="
-      - dbt run --profiles-dir ~/.dbt
-      - echo ""
-      - echo "=========================================="
-      - echo "✅ Executando testes de qualidade..."
-      - echo "=========================================="
-      - dbt test --profiles-dir ~/.dbt
-      - echo ""
-      - echo "=========================================="
-      - echo "📚 Gerando documentação..."
-      - echo "=========================================="
-      - dbt docs generate --profiles-dir ~/.dbt
-      - echo ""
-      - echo "=========================================="
-      - echo "🕐 Adicionando timestamp de atualização..."
-      - echo "=========================================="
-      - |
-        if [ -f target/index.html ]; then
-          BUILD_DATE=$(TZ=America/Sao_Paulo date +"%d/%m/%Y às %H:%M")
-          sed -i "/<\/body>/i <p style='text-align:center;font-size:11px;color:#666;margin-top:40px;'> Última atualização: ${BUILD_DATE} (UTC-3)</p>" target/index.html
-          echo "✅ Timestamp adicionado: $BUILD_DATE"
-        else
-          echo "⚠️  Arquivo target/index.html não encontrado"
-        fi
+      - echo "Running dbt transformations..."
+      - dbt run
+      - echo "Running data quality tests..."
+      - dbt test
+      - echo "Generating documentation..."
+      - dbt docs generate
+      - echo "Adding timestamp to documentation..."
+      - BUILD_DATE=$(TZ=America/Sao_Paulo date +"%d/%m/%Y às %H:%M")
+      - sed -i "/<\/body>/i <p style='text-align:center;font-size:11px;color:#666;margin-top:40px;'> Última atualização: ${BUILD_DATE} (UTC-3)</p>" target/index.html
 
   post_build:
     commands:
-      - echo ""
-      - echo "=========================================="
-      - echo "📤 Publicando documentação no S3..."
-      - echo "=========================================="
-      - |
-        if [ -d "target" ]; then
-          echo "📁 Sincronizando arquivos para S3..."
-          aws s3 sync target/ $S3_DOCS_DIR --delete --region $AWS_REGION
-          echo ""
-          echo "✅ Publicação concluída!"
-          echo "🌐 Acesse: https://www.cimabrhp.com"
-        else
-          echo "❌ ERRO: Diretório target/ não encontrado"
-          exit 1
-        fi
-
-on-failure:
-  - echo ""
-  - echo "=========================================="
-  - echo "❌ BUILD FALHOU"
-  - echo "=========================================="
-  - echo "Verifique:"
-  - echo "1. Permissões IAM (athena:StartQueryExecution)"
-  - echo "2. Database no Glue Catalog"
-  - echo "3. S3 buckets acessíveis"
-  - echo "4. Credenciais AWS configuradas"
-  - echo "Consulte: AWS_CODEBUILD_SETUP.md"
+      - echo "Publishing documentation to S3..."
+      - aws s3 sync target/ s3://www.cimabrhp.com --delete --region us-east-1
+      - echo "Build completed successfully!"
 
 artifacts:
   files:
