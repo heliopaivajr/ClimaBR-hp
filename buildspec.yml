@@ -24,20 +24,21 @@ phases:
       - echo "Region: $AWS_REGION"
       - mkdir -p ~/.dbt
       - echo "Generating profiles.yml for production..."
-      - cat > ~/.dbt/profiles.yml << EOF
-climabr:
-  target: prod
-  outputs:
-    prod:
-      type: athena
-      database: awsdatacatalog
-      region_name: us-east-1
-      schema: landing
-      s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
-      s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
-      threads: 4
-      timeout_seconds: 300
-EOF
+      - |
+        cat > ~/.dbt/profiles.yml <<PROFILES
+        climabr:
+          target: prod
+          outputs:
+            prod:
+              type: athena
+              database: awsdatacatalog
+              region_name: us-east-1
+              schema: landing
+              s3_staging_dir: s3://proj-clima-dbt-hp/dbt/metadados/
+              s3_data_dir: s3://proj-clima-dbt-hp/dbt/table/
+              threads: 4
+              timeout_seconds: 300
+        PROFILES
       - echo "Validating Athena credentials..."
       - dbt debug
 
